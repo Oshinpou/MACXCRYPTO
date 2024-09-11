@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="viewport" content="width=device-width, initial-scale=1.0">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MACX Presale</title>
     <style>
         body {
@@ -50,17 +50,17 @@
 <body>
     <div class="container">
         <div class="title">MACX Coin Presale</div>
-        
+
         <!-- Wallet connection status -->
         <div class="wallet-info">
             <button id="walletConnectButton">Connect Wallet</button>
             <button id="walletDisconnectButton" style="display: none;">Disconnect Wallet</button>
         </div>
-        
+
         <!-- Buy form -->
         <input type="number" id="macxAmount" placeholder="Enter MACX amount (min 1, max 1000000000)">
         <button id="buyButton">Buy Now</button>
-        
+
         <!-- Result messages -->
         <div id="message" class="success" style="display: none;"></div>
         <div id="errorMessage" class="error" style="display: none;"></div>
@@ -69,96 +69,150 @@
     <!-- Web3.js and WalletConnect Script -->
     <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
     <script>
-        let web3;
-        let walletAddress = "";
+        // Constants
+        const infuraUrl = 'https://mainnet.infura.io/v3/0ca49505caee401fbe8a78b628300e58';
+        const ownerWalletAddress = '0x481e8DB1dd18fd02caA8A83Ef7A73cF207b83930'; // Replace with your wallet address
         const maxMacxAmount = 1000000000;
         const minMacxAmount = 1;
-        const macxToBnbRate = 0.01; // 0.01 BNB per 1 MACX
-        const ownerWalletAddress = '0x481e8DB1dd18fd02caA8A83Ef7A73cF207b83930'; // Replace with your BNB wallet address
-        const infuraUrl = 'https://mainnet.infura.io/v3/0ca49505caee401fbe8a78b628300e58';
+        const macxToBnbRate = 0.01; // 0.01 BNB per MACX
+        let web3;
+        let walletAddress = "";
 
-        // Initialize Web3 with Infura
+        // Initialize Web3
         async function initializeWeb3() {
-            web3 = new Web3(new Web3.providers.HttpProvider(infuraUrl));
-        }
-
-        // Wallet Connect Functionality
-        async function connectWallet() {
-            if (window.ethereum) {
-                try {
-                    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                    walletAddress = accounts[0];
-                    document.getElementById('walletConnectButton').style.display = 'none';
-                    document.getElementById('walletDisconnectButton').style.display = 'block';
-                    showMessage('Wallet connected: ' + walletAddress);
-                } catch (error) {
-                    showError('Connection failed: ' + error.message);
-                }
-            } else {
-                showError('Please install MetaMask!');
+            try {
+                web3 = new Web3(new Web3.providers.HttpProvider(infuraUrl));
+                showMessage('Web3 initialized');
+            } catch (error) {
+                showError('Web3 initialization failed: ' + error.message);
             }
         }
 
+        // Core function 1: Connect Wallet
+        async function connectWallet() {
+            try {
+                if (window.ethereum) {
+                    const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+                    walletAddress = accounts[0];
+                    updateUIAfterWalletConnect();
+                    showMessage('Wallet connected: ' + walletAddress);
+                } else {
+                    showError('MetaMask not detected');
+                }
+            } catch (error) {
+                showError('Connection failed: ' + error.message);
+            }
+        }
+
+        // Core function 2: Disconnect Wallet
         function disconnectWallet() {
             walletAddress = "";
-            document.getElementById('walletConnectButton').style.display = 'block';
-            document.getElementById('walletDisconnectButton').style.display = 'none';
+            updateUIAfterWalletDisconnect();
             showMessage('Wallet disconnected');
         }
 
-        // Buy MACX Functionality with Enhanced Error Handling
-        async function buyMacx() {
-            const macxAmount = parseFloat(document.getElementById('macxAmount').value);
-            if (isNaN(macxAmount) || macxAmount < minMacxAmount || macxAmount > maxMacxAmount) {
-                showError(`Amount should be between ${minMacxAmount} and ${maxMacxAmount} MACX`);
-                return;
-            }
-
-            const bnbAmount = macxAmount * macxToBnbRate;
-
+        // Core function 3: Fetch Wallet Balance
+        async function fetchWalletBalance() {
             try {
-                // Attempt to send BNB to the owner's wallet
-                const transaction = await web3.eth.sendTransaction({
-                    from: walletAddress,
-                    to: ownerWalletAddress,
-                    value: web3.utils.toWei(bnbAmount.toString(), 'ether'),
-                    gas: 3000000 // Optional, can be increased depending on your contract
-                });
-
-                showMessage(`Successfully bought ${macxAmount} MACX! The coins will be sent after the listing date.`);
-            } catch (error) {
-                // Handle specific EVM error (Transaction Reverted)
-                if (error.message.includes('reverted by the EVM')) {
-                    showError('Transaction failed: The transaction was reverted by the EVM. Please check the input and try again.');
-
-                    // Optionally retry the transaction
-                    await retryTransaction(bnbAmount);
+                if (walletAddress) {
+                    const balance = await web3.eth.getBalance(walletAddress);
+                    return web3.utils.fromWei(balance, 'ether');
                 } else {
-                    showError('Transaction failed: ' + error.message);
+                    showError('Wallet not connected');
                 }
+            } catch (error) {
+                showError('Failed to fetch balance: ' + error.message);
             }
         }
 
-        // Function to retry the transaction if the first attempt fails
-        async function retryTransaction(bnbAmount) {
-            try {
-                // Retry transaction after a small delay (e.g., 2 seconds)
-                await new Promise(resolve => setTimeout(resolve, 2000));
+        // Core function 4: Validate MACX Purchase Input
+        function validateMacxInput(macxAmount) {
+            if (isNaN(macxAmount) || macxAmount < minMacxAmount || macxAmount > maxMacxAmount) {
+                showError(`Amount should be between ${minMacxAmount} and ${maxMacxAmount} MACX`);
+                return false;
+            }
+            return true;
+        }
 
-                const retryTransaction = await web3.eth.sendTransaction({
+        // Core function 5: Convert MACX to BNB Amount
+        function calculateBnbAmount(macxAmount) {
+            return macxAmount * macxToBnbRate;
+        }
+
+        // Core function 6: Confirm Sufficient Balance
+        async function checkSufficientBalance(bnbAmount) {
+            const balance = await fetchWalletBalance();
+            if (parseFloat(balance) < bnbAmount) {
+                showError('Insufficient BNB balance for this transaction');
+                return false;
+            }
+            return true;
+        }
+
+        // Core function 7: Execute BNB Transaction
+        async function executeTransaction(bnbAmount) {
+            try {
+                const transaction = await web3.eth.sendTransaction({
                     from: walletAddress,
                     to: ownerWalletAddress,
                     value: web3.utils.toWei(bnbAmount.toString(), 'ether'),
                     gas: 3000000
                 });
+                showMessage('Transaction successful!');
+                return true;
+            } catch (error) {
+                handleTransactionError(error, bnbAmount);
+                return false;
+            }
+        }
 
-                showMessage(`Successfully retried and bought MACX!`);
+        // Core function 8: Handle Transaction Errors
+        async function handleTransactionError(error, bnbAmount) {
+            if (error.message.includes('reverted by the EVM')) {
+                showError('Transaction failed: EVM reverted the transaction. Retrying...');
+                await retryTransaction(bnbAmount);
+            } else {
+                showError('Transaction failed: ' + error.message);
+            }
+        }
+
+        // Core function 9: Retry Failed Transactions
+        async function retryTransaction(bnbAmount) {
+            try {
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+                await executeTransaction(bnbAmount);
             } catch (retryError) {
                 showError('Retry failed: ' + retryError.message);
             }
         }
 
-        // Show success message
+        // Core function 10: Buy MACX Coins
+        async function buyMacx() {
+            const macxAmount = parseFloat(document.getElementById('macxAmount').value);
+
+            if (!validateMacxInput(macxAmount)) return;
+
+            const bnbAmount = calculateBnbAmount(macxAmount);
+            const sufficientBalance = await checkSufficientBalance(bnbAmount);
+
+            if (!sufficientBalance) return;
+
+            await executeTransaction(bnbAmount);
+        }
+
+        // Core function 11: Update UI After Wallet Connect
+        function updateUIAfterWalletConnect() {
+            document.getElementById('walletConnectButton').style.display = 'none';
+            document.getElementById('walletDisconnectButton').style.display = 'block';
+        }
+
+        // Core function 12: Update UI After Wallet Disconnect
+        function updateUIAfterWalletDisconnect() {
+            document.getElementById('walletConnectButton').style.display = 'block';
+            document.getElementById('walletDisconnectButton').style.display = 'none';
+        }
+
+        // Core function 13: Show Success Messages
         function showMessage(message) {
             const messageElement = document.getElementById('message');
             messageElement.innerText = message;
@@ -166,7 +220,7 @@
             document.getElementById('errorMessage').style.display = 'none';
         }
 
-        // Show error message
+        // Core function 14: Show Error Messages
         function showError(message) {
             const errorElement = document.getElementById('errorMessage');
             errorElement.innerText = message;
@@ -174,13 +228,17 @@
             document.getElementById('message').style.display = 'none';
         }
 
-        // Event Listeners for wallet connection and buying
-        document.getElementById('walletConnectButton').addEventListener('click', connectWallet);
-        document.getElementById('walletDisconnectButton').addEventListener('click', disconnectWallet);
-        document.getElementById('buyButton').addEventListener('click', buyMacx);
+        // Core function 15: Initialize Event Listeners
+        function initializeEventListeners() {
+            document.getElementById('walletConnectButton').addEventListener('click', connectWallet);
+            document.getElementById('walletDisconnectButton').addEventListener('click', disconnectWallet);
+            document.getElementById('buyButton').addEventListener('click', buyMacx);
+        }
 
-        // Initialize Web3
+        // Initialize everything
         initializeWeb3();
+        initializeEventListeners();
+
     </script>
 </body>
 </html>
