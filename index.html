@@ -3,103 +3,156 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MACX CryptoCoin</title>
-    <link rel="stylesheet" href="styles.css">
-<style>
-body {
-    font-family: Arial, sans-serif;
-    margin: 0;
-    padding: 0;
-    background-color: #f4f4f9;
-    color: #333;
-}
-
-.container {
-    width: 80%;
-    margin: 0 auto;
-    padding: 20px;
-    background-color: #fff;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-}
-
-header {
-    text-align: center;
-    padding: 20px 0;
-}
-
-header h1 {
-    margin: 0;
-    color: #1e90ff;
-}
-
-header p {
-    font-size: 1.2em;
-}
-
-section {
-    margin-top: 20px;
-}
-
-section h2 {
-    color: #1e90ff;
-}
-
-ul {
-    list-style-type: none;
-    padding: 0;
-}
-
-li {
-    margin: 10px 0;
-}
-
-button {
-    display: block;
-    margin: 20px auto;
-    padding: 10px 20px;
-    background-color: #1e90ff;
-    color: #fff;
-    border: none;
-    cursor: pointer;
-}
-
-button:hover {
-    background-color: #0d6efd;
-}
-
-</style>
-
+    <title>MACX Presale</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        .container {
+            max-width: 500px;
+            margin: 100px auto;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+        .title {
+            font-size: 24px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        input[type="number"], button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        .wallet-info {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .success, .error {
+            padding: 10px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .success {
+            color: green;
+        }
+        .error {
+            color: red;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>Welcome to MACX CryptoCoin</h1>
-            <p>Your gateway to the future of digital currency.</p>
-        </header>
+        <div class="title">MACX Coin Presale</div>
         
-        <section class="description">
-            <h2>Description</h2>
-            <p>MACX CryptoCoin is a revolutionary digital asset designed to empower users with fast, secure, and decentralized transactions. Built on cutting-edge blockchain technology, MACX offers unparalleled performance and reliability.</p>
-        </section>
+        <!-- Wallet connection status -->
+        <div class="wallet-info">
+            <button id="walletConnectButton">Connect Wallet</button>
+            <button id="walletDisconnectButton" style="display: none;">Disconnect Wallet</button>
+        </div>
         
-        <section class="coin-details">
-            <h2>Coin Details</h2>
-            <ul>
-                <li><strong>Symbol:</strong> MACX</li>
-                <li><strong>Total Supply:</strong> 100,000,000,000,000,000 MACX</li>
-                <li><strong>Blockchain:</strong> Binance smart chain (Bep20)</li>
-                
-            </ul>
-        </section>
-
-        <button onclick="showAlert()">More Info< coming soon</button>
+        <!-- Buy form -->
+        <input type="number" id="macxAmount" placeholder="Enter MACX amount (min 1, max 1000000000)">
+        <button id="buyButton">Buy Now</button>
+        
+        <!-- Result messages -->
+        <div id="message" class="success" style="display: none;"></div>
+        <div id="errorMessage" class="error" style="display: none;"></div>
     </div>
 
+    <!-- Web3.js and WalletConnect Script -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
     <script>
-    
-    function showAlert() {
-    alert("MACX CryptoCoin is at the forefront of cryptocurrency innovation. Stay tuned for more updates!");
-}
+        let web3;
+        let walletAddress = "";
+        const maxMacxAmount = 1000000000;
+        const minMacxAmount = 1;
+        const macxToBnbRate = 0.01; // 0.01 BNB per 1 MACX
+        const ownerWalletAddress = '0x9F0A2A125a825AcCD954e141d2e9fE8E7d94bFF6'; // Replace with your BNB wallet address
+        const infuraUrl = 'https://mainnet.infura.io/v3/0ca49505caee401fbe8a78b628300e58';
+
+        // Initialize Web3 with Infura
+        async function initializeWeb3() {
+            web3 = new Web3(new Web3.providers.HttpProvider(infuraUrl));
+        }
+
+        // Wallet Connect Functionality
+        async function connectWallet() {
+            if (window.ethereum) {
+                try {
+                    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    walletAddress = accounts[0];
+                    document.getElementById('walletConnectButton').style.display = 'none';
+                    document.getElementById('walletDisconnectButton').style.display = 'block';
+                    showMessage('Wallet connected: ' + walletAddress);
+                } catch (error) {
+                    showError('Connection failed: ' + error.message);
+                }
+            } else {
+                showError('Please install MetaMask!');
+            }
+        }
+
+        function disconnectWallet() {
+            walletAddress = "";
+            document.getElementById('walletConnectButton').style.display = 'block';
+            document.getElementById('walletDisconnectButton').style.display = 'none';
+            showMessage('Wallet disconnected');
+        }
+
+        // Buy MACX Functionality
+        async function buyMacx() {
+            const macxAmount = parseFloat(document.getElementById('macxAmount').value);
+            if (isNaN(macxAmount) || macxAmount < minMacxAmount || macxAmount > maxMacxAmount) {
+                showError(`Amount should be between ${minMacxAmount} and ${maxMacxAmount} MACX`);
+                return;
+            }
+
+            const bnbAmount = macxAmount * macxToBnbRate;
+
+            try {
+                // Send BNB to the owner's wallet
+                const transaction = await web3.eth.sendTransaction({
+                    from: walletAddress,
+                    to: ownerWalletAddress,
+                    value: web3.utils.toWei(bnbAmount.toString(), 'ether')
+                });
+
+                showMessage(`Successfully bought ${macxAmount} MACX! The coins will be sent after the listing date.`);
+            } catch (error) {
+                showError('Transaction failed: ' + error.message);
+            }
+        }
+
+        // Show success message
+        function showMessage(message) {
+            const messageElement = document.getElementById('message');
+            messageElement.innerText = message;
+            messageElement.style.display = 'block';
+            document.getElementById('errorMessage').style.display = 'none';
+        }
+
+        // Show error message
+        function showError(message) {
+            const errorElement = document.getElementById('errorMessage');
+            errorElement.innerText = message;
+            errorElement.style.display = 'block';
+            document.getElementById('message').style.display = 'none';
+        }
+
+        // Event Listeners
+        document.getElementById('walletConnectButton').addEventListener('click', connectWallet);
+        document.getElementById('walletDisconnectButton').addEventListener('click', disconnectWallet);
+        document.getElementById('buyButton').addEventListener('click', buyMacx);
+
+        // Initialize Web3
+        initializeWeb3();
     </script>
 </body>
 </html>
